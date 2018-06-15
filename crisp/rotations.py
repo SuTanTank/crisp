@@ -16,6 +16,8 @@ from numpy.testing import assert_almost_equal
 
 from . import ransac
 
+import pyopengv
+
 #------------------------------------------------------------------------------
 
 def procrustes(X, Y, remove_mean=False):
@@ -215,7 +217,7 @@ def integrate_gyro_quaternion(gyro_ts, gyro_data):
          
     return q_list
 
-#--------------------------------------------------------------------------
+#-------------------------------------/home/tan/cpp/opengv-master/build/lib-------------------------------------
 
 def slerp(q1, q2, u):
     """SLERP: Spherical linear interpolation between two unit quaternions.
@@ -292,12 +294,12 @@ def estimate_rotation_procrustes_ransac(x, y, camera, threshold, inlier_ratio=0.
     
     X = camera.unproject(x)
     Y = camera.unproject(y)
-    
+
     data = np.vstack((X, Y, x))
     assert data.shape[0] == 8
-    
+
     model_func = lambda data: procrustes(data[:3], data[3:6], remove_mean=do_translation)
-    
+
     def eval_func(model, data):
         Y = data[3:6].reshape(3,-1)
         x = data[6:].reshape(2,-1)
@@ -308,18 +310,27 @@ def estimate_rotation_procrustes_ransac(x, y, camera, threshold, inlier_ratio=0.
         dist = np.sqrt(np.sum((x-xhat)**2, axis=0))
 
         return dist
-    
+
     inlier_selection_prob = 0.99999
     model_points = 2
     ransac_iterations = int(np.log(1 - inlier_selection_prob) / np.log(1-inlier_ratio**model_points))
-    
-    model_est, ransac_consensus_idx = ransac.RANSAC(model_func, eval_func, data, model_points, ransac_iterations, threshold, recalculate=True)    
-    if model_est is not None:
+
+    ransac_transformation = None
+    model_est = None
+
+    if (X[2, 0] == 1):  # normal camera
+        model_est, ransac_consensus_idx = ransac.RANSAC(model_func, eval_func, data, model_points, ransac_iterations, threshold, recalculate=True)
+    else:
+        ransac_transformation, ransac_consensus_idx = pyopengv.relative_pose_ransac(Y.T, X.T, "STEWENIUS", threshold, ransac_iterations, inlier_selection_prob, True)
+    if ransac_transformation is not None:
+        R = ransac_transformation[:, :3]
+        t = ransac_transformation[:, 3]
+        dist = eval_func((R, None), data)
+    elif model_est is not None:
         (R, t) = model_est
-        dist = eval_func((R, t), data)                
+        dist = eval_func((R, t), data)
     else:
         dist = None
         R, t = None, None
         ransac_consensus_idx = []
-
     return R, t, dist, ransac_consensus_idx

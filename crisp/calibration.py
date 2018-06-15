@@ -127,6 +127,7 @@ class AutoCalibrator(object):
 
         if not skip_estimation:
             time_offset = self.find_initial_offset()
+            # time_offset = 0
             # TODO: Detect when time offset initialization fails, and raise InitializationError
 
             R = self.find_initial_rotation()
@@ -228,8 +229,8 @@ class AutoCalibrator(object):
         gyro_rate = self.parameter['gyro_rate']
         frame_times = np.arange(len(flow)) / self.video.frame_rate
         gyro_times = np.arange(self.gyro.num_samples) / gyro_rate
-        time_offset = timesync.sync_camera_gyro(flow, frame_times, self.gyro.data.T, gyro_times, levels=pyramids)
-        
+        # time_offset = timesync.sync_camera_gyro(flow, frame_times, self.gyro.data.T, gyro_times, levels=pyramids)
+        time_offset = 0
         logger.debug("Initial time offset: {:.4f}".format(time_offset))
         self.params['initialized']['time_offset'] = time_offset
         

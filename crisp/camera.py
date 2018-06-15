@@ -341,6 +341,68 @@ class OpenCVCameraModel(CameraModel):
             return instance
 
 
+class PanoramicCameraModel(CameraModel):
+    """
+    This is the camera model for 360 cameras in equirectangualr presentation. The camera calibration is not needed.
+    """
+    def __init__(self, image_size, frame_rate, readout):
+        super(PanoramicCameraModel, self).__init__(image_size, frame_rate, readout)
+
+    def project(self, points):
+        """Project 3D points to image coordinates.
+
+        This projects 3D points expressed in the camera coordinate system to image points.
+
+        Parameters
+        --------------------
+        points : (3, N) ndarray
+            3D points (points on unit sphere)
+
+        Returns
+        --------------------
+        image_points : (2, N) ndarray
+            The world points in equirectangular form
+        """
+        phi = np.arcsin(points[2])
+        temp = np.cos(phi) + 1e-10
+        costheta = np.divide(points[0], temp)
+        sintheta = np.divide(points[1], temp)
+        theta = np.arcsin(sintheta)
+        theta[costheta < 0] = np.pi - theta[costheta < 0]
+        image_points = np.zeros((2, phi.size))
+        image_points[0] = self.image_size[1] * (0.75 - theta / 2 / np.pi)
+        image_points[1] = self.image_size[0] * (0.5 - phi / np.pi)
+
+        return image_points
+
+    def unproject(self, image_points):
+        """Find directional vector of an image point in 3D world
+
+        This is the inverse of the `project` function.
+
+        Parameters
+        ----------------------
+        image_points : (2, N) ndarray
+            Image points
+
+        Returns
+        ----------------------
+        points : (3, N) ndarray
+            directional vectors as points on unit sphere
+        """
+        uv = np.copy(image_points)
+        uv[0] = (0.75 - uv[0] / self.image_size[1]) * 2 * np.pi
+        uv[1] = (0.5 - uv[1] / self.image_size[0]) * np.pi
+        world_points = np.zeros((3, image_points.shape[1]))
+        world_points[0] = np.multiply(np.cos(uv[0]), np.cos(uv[1]))
+        world_points[1] = np.multiply(np.sin(uv[0]), np.cos(uv[1]))
+        world_points[2] = np.sin(uv[1])
+
+        return world_points
+    @classmethod
+    def from_hdf(cls, filepath):
+        return None
+
 def to_homogeneous(X):
     if X.ndim == 1:
         return np.append(X, 1)
